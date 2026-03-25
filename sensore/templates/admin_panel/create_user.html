@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Create User | Sensore{% endblock %}
+{% block page_title %}Create User{% endblock %}
+{% block nav_acreate %}active{% endblock %}
+
+{% block topbar_right %}
+<a href="{% url 'admin_user_list' %}" class="btn btn-secondary btn-sm">← Back</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:480px">
+  <div class="card-title">New Account</div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>Email *</label>
+      <input type="email" name="email" class="form-control" required autofocus>
+    </div>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" name="username" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>Password *</label>
+      <input type="password" name="password" class="form-control" required>
+    </div>
+    <div class="form-group">
+      <label>Role *</label>
+      <select name="role" class="form-control" id="roleSelect" onchange="togglePatientFields()">
+        <option value="patient">Patient</option>
+        <option value="clinician">Clinician</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+
+    <!-- Patient-only fields -->
+    <div id="patientFields">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" name="full_name" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Assign Clinician</label>
+        <select name="clinician_id" class="form-control">
+          <option value="">- None -</option>
+          {% for c in clinicians %}
+          <option value="{{ c.id }}">{{ c.username|default:c.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Account</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePatientFields() {
+  const role = document.getElementById('roleSelect').value;
+  document.getElementById('patientFields').style.display = role === 'patient' ? 'block' : 'none';
+}
+togglePatientFields();
+</script>
+{% endblock %}

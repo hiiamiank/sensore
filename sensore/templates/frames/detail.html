@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Frame #{{ frame.id }} | Sensore{% endblock %}
+{% block page_title %}Frame #{{ frame.id }}{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+
+  <!-- Heatmap -->
+  <div class="card">
+    <div class="card-title">Pressure Heatmap</div>
+    <canvas id="heatmap"
+      style="display:block;border-radius:6px;image-rendering:pixelated;width:256px;height:256px">
+    </canvas>
+    <div style="margin-top:14px">
+      <table>
+        <tr><td style="color:#aaa;width:140px">Recorded at</td><td>{{ frame.recorded_at|date:"H:i:s, d M Y" }}</td></tr>
+        <tr><td style="color:#aaa">PPI</td><td><strong>{{ frame.peak_pressure_index|floatformat:0|default:"—" }}</strong></td></tr>
+        <tr><td style="color:#aaa">Contact area</td><td>{{ frame.contact_area_pct|floatformat:1|default:"—" }}%</td></tr>
+        <tr><td style="color:#aaa">Flagged</td>
+          <td>{% if frame.flagged_for_review %}<span class="badge badge-amber">Yes</span>{% else %}<span class="badge badge-green">Resolved</span>{% endif %}</td>
+        </tr>
+      </table>
+      {% if user.role == 'clinician' or user.role == 'admin' %}
+        {% if frame.flagged_for_review %}
+        <div style="margin-top:12px">
+          <button class="btn btn-sm" id="resolve-btn"
+            style="background:#d1fae5;color:#059669;border:1px solid #6ee7b7"
+            onclick="resolveFrame({{ frame.id }})">
+            Mark as Resolved
+          </button>
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Comments -->
+  <div class="card">
+    <div class="card-title">Comments</div>
+    <div id="comment-list" style="max-height:320px;overflow-y:auto;margin-bottom:12px">
+      {% for comment in comments %}
+        <div style="background:#f9f9f9;border-radius:6px;padding:10px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="badge {% if comment.author.role == 'clinician' %}badge-blue{% else %}badge-gray{% endif %}">
+              {{ comment.author.role }}
+            </span>
+            <span style="font-size:12px;font-weight:500">{{ comment.author.username|default:comment.author.email }}</span>
+            <span style="font-size:11px;color:#aaa;margin-left:auto">{{ comment.created_at|date:"H:i, d M" }}</span>
+          </div>
+          <div style="font-size:13px;color:#444">{{ comment.body }}</div>
+          {% for reply in comment.replies.all %}
+          <div style="margin-top:8px;margin-left:16px;background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:8px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span class="badge {% if reply.author.role == 'clinician' %}badge-blue{% else %}badge-gray{% endif %}">
+                {{ reply.author.role }}
+              </span>
+              <span style="font-size:12px;font-weight:500">{{ reply.author.username|default:reply.author.email }}</span>
+              <span style="font-size:11px;color:#aaa;margin-left:auto">{{ reply.created_at|date:"H:i" }}</span>
+            </div>
+            <div style="font-size:13px;color:#444">{{ reply.body }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      {% empty %}
+        <p style="color:#aaa;font-size:13px">No comments yet.</p>
+      {% endfor %}
+    </div>
+    <hr>
+    <div style="margin-top:12px">
+      <div class="form-group">
+        <label>Add a comment</label>
+        <textarea id="commentBody" class="form-control" rows="3"
+          placeholder="Type your comment…" style="resize:vertical"></textarea>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="submitComment()">Post comment</button>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+fetch("{% url 'api_frame_heatmap' frame.id %}")
+  .then(r => r.json())
+  .then(data => {
+    const canvas = document.getElementById('heatmap');
+    const ctx = canvas.getContext('2d');
+    const CELL = 8;
+    canvas.width  = 32 * CELL;
+    canvas.height = 32 * CELL;
+    function color(v) {
+      const t = (v - 1) / 4094;
+      if (t < 0.33) { const r=t/0.33; return [30,Math.round(60+r*100),Math.round(180+r*40)]; }
+      if (t < 0.66) { const r=(t-0.33)/0.33; return [Math.round(r*200),Math.round(160-r*60),Math.round(220-r*160)]; }
+      const r=(t-0.66)/0.34; return [Math.round(200+r*55),Math.round(100-r*80),60];
+    }
+    data.matrix.forEach((row,ri) => row.forEach((val,ci) => {
+      const [R,G,B]=color(val);
+      ctx.fillStyle=`rgb(${R},${G},${B})`;
+      ctx.fillRect(ci*CELL, ri*CELL, CELL, CELL);
+    }));
+  });
+
+async function submitComment() {
+  const body = document.getElementById('commentBody').value.trim();
+  if (!body) return;
+  const res = await fetch("{% url 'api_add_comment' frame.id %}", {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+    body: JSON.stringify({body, parent_id: null})
+  });
+  if (res.ok) location.reload();
+}
+
+async function resolveFrame(id) {
+  const btn = document.getElementById('resolve-btn');
+  const res = await fetch(`/api/frames/${id}/resolve/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+  });
+  if (res.ok) {
+    btn.disabled = true;
+    btn.textContent = 'Resolved';
+    btn.style.background = '#f3f4f6';
+    btn.style.color = '#6b7280';
+    btn.style.borderColor = '#e5e5e5';
+    document.querySelector('.badge-amber').outerHTML = '<span class="badge badge-green">Resolved</span>';
+  }
+}
+</script>
+{% endblock %}

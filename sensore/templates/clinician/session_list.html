@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Sessions | {{ profile.full_name }}{% endblock %}
+{% block page_title %}Sessions - {{ profile.full_name }}{% endblock %}
+{% block nav_cdash %}active{% endblock %}
+
+{% block topbar_right %}
+<a href="{% url 'clinician_patient_detail' profile.id %}" class="btn btn-secondary btn-sm">← Patient</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">All Sessions</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Date</th><th>Start</th><th>Duration</th><th>Device</th><th>Frames</th></tr></thead>
+      <tbody>
+        {% for session in page_obj %}
+        <tr>
+          <td>{{ session.id }}</td>
+          <td>{{ session.session_start|date:"d M Y" }}</td>
+          <td>{{ session.session_start|date:"H:i" }}</td>
+          <td>{{ session.duration_minutes|default:"Ongoing" }} {% if session.duration_minutes %}min{% endif %}</td>
+          <td>{{ session.device_id|default:"—" }}</td>
+          <td>{{ session.frames.count }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="color:#aaa;text-align:center;padding:24px">No sessions.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+    <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

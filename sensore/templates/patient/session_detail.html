@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Session #{{ session.id }} | Sensore{% endblock %}
+{% block page_title %}Session #{{ session.id }}{% endblock %}
+{% block nav_sessions %}active{% endblock %}
+
+{% block topbar_right %}
+<a href="{% url 'patient_session_list' %}" class="btn btn-secondary btn-sm">← Back</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="margin-bottom:16px">
+  <div class="card">
+    <div class="card-title">Session Info</div>
+    <table>
+      <tr><td style="color:#aaa;width:120px">Date</td><td>{{ session.session_start|date:"d M Y" }}</td></tr>
+      <tr><td style="color:#aaa">Start</td><td>{{ session.session_start|date:"H:i:s" }}</td></tr>
+      <tr><td style="color:#aaa">End</td><td>{{ session.session_end|date:"H:i:s"|default:"Ongoing" }}</td></tr>
+      <tr><td style="color:#aaa">Duration</td><td>{{ session.duration_minutes|default:"—" }} {% if session.duration_minutes %}min{% endif %}</td></tr>
+      <tr><td style="color:#aaa">Device</td><td>{{ session.device_id|default:"—" }}</td></tr>
+      <tr><td style="color:#aaa">Frames</td><td>{{ frames.count }}</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Upload Sensor CSV</div>
+    <form method="post" action="{% url 'upload_csv' session.id %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label>CSV File</label>
+        <input type="file" name="csv_file" accept=".csv" class="form-control">
+      </div>
+      <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Pressure Frames</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Frame #</th>
+          <th>Recorded At</th>
+          <th>Peak Pressure (PPI)</th>
+          <th>Contact Area %</th>
+          <th>Flagged</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for frame in frames %}
+        <tr>
+          <td>{{ frame.id }}</td>
+          <td>{{ frame.recorded_at|date:"H:i:s" }}</td>
+          <td>
+            {% if frame.peak_pressure_index >= 3000 %}
+              <span style="color:#dc2626;font-weight:500">{{ frame.peak_pressure_index|floatformat:0 }}</span>
+            {% elif frame.peak_pressure_index >= 1800 %}
+              <span style="color:#d97706">{{ frame.peak_pressure_index|floatformat:0 }}</span>
+            {% else %}
+              {{ frame.peak_pressure_index|floatformat:0|default:"—" }}
+            {% endif %}
+          </td>
+          <td>{{ frame.contact_area_pct|floatformat:1|default:"—" }}%</td>
+          <td>{% if frame.flagged_for_review %}<span class="badge badge-amber">Review</span>{% else %}—{% endif %}</td>
+          <td><a href="{% url 'frame_detail' frame.id %}" class="btn btn-secondary btn-sm">View</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="color:#aaa;text-align:center;padding:24px">No frames yet. Upload a CSV above.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

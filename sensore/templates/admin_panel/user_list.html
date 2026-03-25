@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Users | Sensore{% endblock %}
+{% block page_title %}All Users{% endblock %}
+{% block nav_ausers %}active{% endblock %}
+
+{% block topbar_right %}
+<a href="?role=patient"   class="btn btn-sm {% if role_filter == 'patient' %}btn-primary{% else %}btn-secondary{% endif %}">Patients</a>
+<a href="?role=clinician" class="btn btn-sm {% if role_filter == 'clinician' %}btn-primary{% else %}btn-secondary{% endif %}">Clinicians</a>
+<a href="?role=admin"     class="btn btn-sm {% if role_filter == 'admin' %}btn-primary{% else %}btn-secondary{% endif %}">Admins</a>
+<a href="?"               class="btn btn-secondary btn-sm">All</a>
+<a href="{% url 'admin_create_user' %}" class="btn btn-primary btn-sm">+ Create</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Username</th><th>Role</th><th>Active</th><th>Joined</th><th></th></tr></thead>
+      <tbody>
+        {% for u in page_obj %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.username|default:"—" }}</td>
+          <td><span class="badge {% if u.role == 'admin' %}badge-red{% elif u.role == 'clinician' %}badge-blue{% else %}badge-gray{% endif %}">{{ u.role }}</span></td>
+          <td>{% if u.is_active %}<span class="dot dot-green"></span>Yes{% else %}<span class="dot dot-red"></span>No{% endif %}</td>
+          <td>{{ u.created_at|date:"d M Y" }}</td>
+          <td style="display:flex;gap:6px">
+            <a href="{% url 'admin_edit_user' u.id %}" class="btn btn-secondary btn-sm">Edit</a>
+            {% if u != request.user %}
+            <button class="btn btn-danger btn-sm" onclick="deactivate({{ u.id }}, this)">Deactivate</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="color:#aaa;text-align:center;padding:24px">No users found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&role={{ role_filter }}">← Prev</a>{% endif %}
+    <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&role={{ role_filter }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function deactivate(id, btn) {
+  if (!confirm('Deactivate this user?')) return;
+  const res = await fetch(`/admin-panel/users/${id}/deactivate/`, {
+    method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}
+  });
+  if (res.ok) { btn.closest('tr').style.opacity='0.4'; btn.disabled=true; }
+}
+</script>
+{% endblock %}

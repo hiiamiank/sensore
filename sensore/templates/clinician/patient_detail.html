@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.full_name }} | Sensore{% endblock %}
+{% block page_title %}{{ profile.full_name }}{% endblock %}
+{% block nav_cdash %}active{% endblock %}
+
+{% block topbar_right %}
+<!-- Time filter -->
+<div style="display:flex;gap:4px">
+  <a href="?hours=1"   class="btn btn-sm {% if hours == 1 %}btn-primary{% else %}btn-secondary{% endif %}">1h</a>
+  <a href="?hours=6"   class="btn btn-sm {% if hours == 6 %}btn-primary{% else %}btn-secondary{% endif %}">6h</a>
+  <a href="?hours=24"  class="btn btn-sm {% if hours == 24 %}btn-primary{% else %}btn-secondary{% endif %}">24h</a>
+  <a href="?hours=168" class="btn btn-sm {% if hours == 168 %}btn-primary{% else %}btn-secondary{% endif %}">7d</a>
+</div>
+<a href="{% url 'generate_report' profile.id %}" class="btn btn-primary btn-sm">Generate Report</a>
+<a href="{% url 'clinician_dashboard' %}" class="btn btn-secondary btn-sm">← Back</a>
+{% endblock %}
+
+{% block content %}
+<!-- Metric tiles -->
+<div class="grid-3" style="margin-bottom:16px">
+  <div class="card">
+    <div class="card-title">Peak Pressure Index</div>
+    <div class="metric-val">{{ latest_frame.peak_pressure_index|floatformat:0|default:"—" }}</div>
+    <div class="metric-sub">Latest frame</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Contact Area</div>
+    <div class="metric-val">{{ latest_frame.contact_area_pct|floatformat:1|default:"—" }}<span style="font-size:16px;color:#aaa">%</span></div>
+    <div class="metric-sub">Latest frame</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Open Alerts</div>
+    <div class="metric-val">{{ alerts|length }}</div>
+    <div class="metric-sub">Unacknowledged</div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-bottom:16px">
+  <!-- Alerts -->
+  <div class="card">
+    <div class="card-title">Active Alerts</div>
+    {% for alert in alerts %}
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">
+      <span class="dot {% if alert.severity == 'high' %}dot-red{% elif alert.severity == 'medium' %}dot-amber{% else %}dot-green{% endif %}" style="margin-top:5px"></span>
+      <div style="flex:1;font-size:12px">
+        <div style="font-weight:500;color:#1a1a1a">{{ alert.message|truncatechars:90 }}</div>
+        <div style="color:#aaa;margin-top:2px">{{ alert.triggered_at|date:"H:i, d M" }}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="ackAlert({{ alert.id }}, this)">Ack</button>
+    </div>
+    {% empty %}
+    <p style="color:#aaa;font-size:13px">No active alerts.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Flagged frames -->
+  <div class="card">
+    <div class="card-title">Flagged for Review</div>
+    {% for frame in flagged_frames %}
+    <div id="flagged-{{ frame.id }}" style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:12px">
+      <div>
+        <span style="font-weight:500">Frame #{{ frame.id }}</span>
+        <span style="color:#aaa;margin-left:8px">{{ frame.recorded_at|date:"H:i, d M" }}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <a href="{% url 'frame_detail' frame.id %}" class="btn btn-secondary btn-sm">View</a>
+        <button class="btn btn-sm" style="background:#d1fae5;color:#059669;border:1px solid #6ee7b7"
+          onclick="resolveFrame({{ frame.id }}, this)">Resolve</button>
+      </div>
+    </div>
+    {% empty %}
+    <p style="color:#aaa;font-size:13px">No flagged frames.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Trend chart -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">PPI & Contact Area — Last {{ hours }}h</div>
+  <div style="position:relative;height:120px">
+    <canvas id="trendChart"></canvas>
+  </div>
+</div>
+
+<!-- Sessions -->
+<div class="card">
+  <div class="card-title">Sessions</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Date</th><th>Start</th><th>Duration</th><th>Frames</th><th></th></tr></thead>
+      <tbody>
+        {% if latest_session %}
+        <tr>
+          <td>{{ latest_session.id }}</td>
+          <td>{{ latest_session.session_start|date:"d M Y" }}</td>
+          <td>{{ latest_session.session_start|date:"H:i" }}</td>
+          <td>{{ latest_session.duration_minutes|default:"Ongoing" }}</td>
+          <td>{{ latest_session.frames.count }}</td>
+          <td><a href="{% url 'clinician_patient_sessions' profile.id %}" class="btn btn-secondary btn-sm">All sessions</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="color:#aaa;text-align:center;padding:16px">No sessions.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const raw = {{ metric_history|safe }};
+const labels = raw.map(d => new Date(d.recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      { label: 'PPI', data: raw.map(d=>d.peak_pressure_index), borderColor:'#ef4444', borderWidth:1.5, pointRadius:0, tension:0.4, yAxisID:'y' },
+      { label: 'Contact %', data: raw.map(d=>d.contact_area_pct), borderColor:'#2563eb', borderWidth:1.5, pointRadius:0, tension:0.4, yAxisID:'y1' }
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ font:{size:11} } } },
+    scales:{
+      x: { ticks:{maxTicksLimit:8,font:{size:10}}, grid:{color:'#f0f0f0'} },
+      y: { position:'left', ticks:{font:{size:10}}, grid:{color:'#f0f0f0'} },
+      y1:{ position:'right', ticks:{font:{size:10}}, grid:{display:false} }
+    }
+  }
+});
+
+async function ackAlert(id, btn) {
+  const res = await fetch(`/api/alerts/${id}/acknowledge/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+  });
+  if (res.ok) { btn.closest('div').style.opacity = '0.4'; btn.disabled = true; btn.textContent = 'Done'; }
+}
+
+async function resolveFrame(id, btn) {
+  const res = await fetch(`/api/frames/${id}/resolve/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+  });
+  if (res.ok) {
+    const row = document.getElementById(`flagged-${id}`);
+    row.style.opacity = '0.4';
+    btn.disabled = true;
+    btn.textContent = 'Resolved';
+  }
+}
+</script>
+{% endblock %}

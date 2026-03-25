@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Clinician Dashboard | Sensore{% endblock %}
+{% block page_title %}My Patients{% endblock %}
+{% block nav_cdash %}active{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">Assigned Patients</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Last Frame</th>
+          <th>PPI</th>
+          <th>Contact %</th>
+          <th>Open Alerts</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in patient_summaries %}
+        <tr>
+          <td>
+            <strong>{{ item.profile.full_name }}</strong><br>
+            <span style="color:#aaa;font-size:11px">{{ item.profile.user.email }}</span>
+          </td>
+          <td>{{ item.latest_frame.recorded_at|date:"d M, H:i"|default:"—" }}</td>
+          <td>
+            {% if item.latest_frame %}
+              {% if item.latest_frame.peak_pressure_index >= 3000 %}
+                <span style="color:#dc2626;font-weight:500">{{ item.latest_frame.peak_pressure_index|floatformat:0 }}</span>
+              {% elif item.latest_frame.peak_pressure_index >= 1800 %}
+                <span style="color:#d97706">{{ item.latest_frame.peak_pressure_index|floatformat:0 }}</span>
+              {% else %}
+                {{ item.latest_frame.peak_pressure_index|floatformat:0 }}
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ item.latest_frame.contact_area_pct|floatformat:1|default:"—" }}{% if item.latest_frame %}%{% endif %}</td>
+          <td>
+            {% if item.alert_count > 0 %}
+              <span class="badge badge-red">{{ item.alert_count }}</span>
+            {% else %}
+              <span class="badge badge-gray">0</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if item.alert_count > 0 %}
+              <span class="dot dot-red"></span> Alert
+            {% elif item.latest_frame %}
+              <span class="dot dot-green"></span> OK
+            {% else %}
+              <span class="dot dot-gray"></span> No data
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'clinician_patient_detail' item.profile.id %}" class="btn btn-secondary btn-sm">View</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="color:#aaa;text-align:center;padding:24px">No patients assigned to you.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

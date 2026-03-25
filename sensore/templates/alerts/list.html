@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Alerts | Sensore{% endblock %}
+{% block page_title %}Alerts{% endblock %}
+{% block nav_alerts %}active{% endblock %}
+{% block nav_calerts %}active{% endblock %}
+{% block nav_aalerts %}active{% endblock %}
+
+{% block topbar_right %}
+<a href="?acknowledged=false" class="btn btn-sm {% if not show_acked %}btn-primary{% else %}btn-secondary{% endif %}">Open</a>
+<a href="?acknowledged=true"  class="btn btn-sm {% if show_acked %}btn-primary{% else %}btn-secondary{% endif %}">Acknowledged</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">{% if show_acked %}Acknowledged{% else %}Open{% endif %} Alerts</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Patient</th>
+          <th>Message</th>
+          <th>Time</th>
+          <th>Frame</th>
+          {% if not show_acked %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for alert in page_obj %}
+        <tr>
+          <td>
+            <span class="badge {% if alert.severity == 'high' %}badge-red{% elif alert.severity == 'medium' %}badge-amber{% else %}badge-green{% endif %}">
+              {{ alert.severity }}
+            </span>
+          </td>
+          <td>{{ alert.patient.full_name }}</td>
+          <td style="max-width:320px">{{ alert.message|truncatechars:100 }}</td>
+          <td>{{ alert.triggered_at|date:"H:i, d M Y" }}</td>
+          <td><a href="{% url 'frame_detail' alert.frame.id %}" class="btn btn-secondary btn-sm">Frame #{{ alert.frame.id }}</a></td>
+          {% if not show_acked %}
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="ackAlert({{ alert.id }}, this)">Acknowledge</button>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="color:#aaa;text-align:center;padding:24px">No alerts found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&acknowledged={{ show_acked }}">← Prev</a>{% endif %}
+    <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&acknowledged={{ show_acked }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function ackAlert(id, btn) {
+  const res = await fetch(`/api/alerts/${id}/acknowledge/`, {
+    method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}
+  });
+  if (res.ok) { btn.closest('tr').style.opacity='0.4'; btn.disabled=true; btn.textContent='Done'; }
+}
+</script>
+{% endblock %}

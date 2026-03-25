@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard | Sensore{% endblock %}
+{% block page_title %}My Dashboard{% endblock %}
+{% block nav_dash %}active{% endblock %}
+
+{% block topbar_right %}
+<div style="display:flex;gap:4px">
+  <a href="?hours=1"   class="btn btn-sm {% if hours == 1 %}btn-primary{% else %}btn-secondary{% endif %}">1h</a>
+  <a href="?hours=6"   class="btn btn-sm {% if hours == 6 %}btn-primary{% else %}btn-secondary{% endif %}">6h</a>
+  <a href="?hours=24"  class="btn btn-sm {% if hours == 24 %}btn-primary{% else %}btn-secondary{% endif %}">24h</a>
+  <a href="?hours=168" class="btn btn-sm {% if hours == 168 %}btn-primary{% else %}btn-secondary{% endif %}">7d</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid-3" style="margin-bottom:16px">
+  <div class="card">
+    <div class="card-title">Peak Pressure Index</div>
+    <div class="metric-val">{{ latest_frame.peak_pressure_index|floatformat:0|default:"—" }}</div>
+    <div class="metric-sub">out of 4,095 max</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Contact Area</div>
+    <div class="metric-val">{{ latest_frame.contact_area_pct|floatformat:1|default:"—" }}<span style="font-size:16px;color:#aaa">%</span></div>
+    <div class="metric-sub">of sensor mat covered</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Active Alerts</div>
+    <div class="metric-val">{{ active_alerts|length }}</div>
+    <div class="metric-sub">unacknowledged</div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-bottom:16px">
+  <!-- Latest session info -->
+  <div class="card">
+    <div class="card-title">Latest Session</div>
+    {% if latest_session %}
+      <table>
+        <tr><td style="color:#aaa;width:130px">Session ID</td><td>#{{ latest_session.id }}</td></tr>
+        <tr><td style="color:#aaa">Started</td><td>{{ latest_session.session_start|date:"d M Y, H:i" }}</td></tr>
+        <tr><td style="color:#aaa">Device</td><td>{{ latest_session.device_id|default:"—" }}</td></tr>
+        <tr><td style="color:#aaa">Duration</td><td>{{ latest_session.duration_minutes|default:"Ongoing" }} {% if latest_session.duration_minutes %}min{% endif %}</td></tr>
+      </table>
+      <div style="margin-top:14px">
+        <a href="{% url 'patient_session_detail' latest_session.id %}" class="btn btn-secondary btn-sm">View session</a>
+      </div>
+    {% else %}
+      <p style="color:#aaa;font-size:13px">No sessions recorded yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Active alerts -->
+  <div class="card">
+    <div class="card-title">Recent Alerts</div>
+    {% if active_alerts %}
+      {% for alert in active_alerts %}
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">
+          <span class="dot {% if alert.severity == 'high' %}dot-red{% elif alert.severity == 'medium' %}dot-amber{% else %}dot-green{% endif %}" style="margin-top:5px"></span>
+          <div style="flex:1">
+            <div style="font-size:12px;color:#1a1a1a;font-weight:500">{{ alert.message|truncatechars:80 }}</div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">{{ alert.triggered_at|date:"H:i, d M" }}</div>
+          </div>
+          <span class="badge {% if alert.severity == 'high' %}badge-red{% elif alert.severity == 'medium' %}badge-amber{% else %}badge-green{% endif %}">
+            {{ alert.severity }}
+          </span>
+        </div>
+      {% endfor %}
+      <div style="margin-top:12px">
+        <a href="{% url 'alert_list' %}" class="btn btn-secondary btn-sm">View all alerts</a>
+      </div>
+    {% else %}
+      <p style="color:#aaa;font-size:13px">No active alerts. All clear.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Metric chart -->
+<div class="card">
+  <div class="card-title">Pressure Trend — Last {{ hours }}h</div>
+  <div style="position:relative;height:120px">
+    <canvas id="trendChart"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const raw = {{ metric_history|safe }};
+const labels = raw.map(d => new Date(d.recorded_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+const ppi = raw.map(d => d.peak_pressure_index);
+const ca  = raw.map(d => d.contact_area_pct);
+
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      { label: 'PPI', data: ppi, borderColor: '#ef4444', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+      { label: 'Contact %', data: ca, borderColor: '#2563eb', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y1' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { font: { size: 11 } } } },
+    scales: {
+      x:  { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#f0f0f0' } },
+      y:  { position: 'left',  ticks: { font: { size: 10 } }, grid: { color: '#f0f0f0' } },
+      y1: { position: 'right', ticks: { font: { size: 10 } }, grid: { display: false } }
+    }
+  }
+});
+</script>
+{% endblock %}

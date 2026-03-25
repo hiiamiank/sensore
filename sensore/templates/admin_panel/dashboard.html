@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | Sensore{% endblock %}
+{% block page_title %}Admin Dashboard{% endblock %}
+{% block nav_adash %}active{% endblock %}
+
+{% block content %}
+<div class="grid-3" style="margin-bottom:16px">
+  <div class="card">
+    <div class="card-title">Total Patients</div>
+    <div class="metric-val">{{ total_patients }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Clinicians</div>
+    <div class="metric-val">{{ total_clinicians }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Open Alerts</div>
+    <div class="metric-val">{{ open_alerts }}</div>
+    <div class="metric-sub">unacknowledged system-wide</div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:0">Recent Users</div>
+    <a href="{% url 'admin_create_user' %}" class="btn btn-primary btn-sm">+ Create User</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Username</th><th>Role</th><th>Active</th><th>Joined</th><th></th></tr></thead>
+      <tbody>
+        {% for u in recent_users %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.username|default:"—" }}</td>
+          <td><span class="badge {% if u.role == 'admin' %}badge-red{% elif u.role == 'clinician' %}badge-blue{% else %}badge-gray{% endif %}">{{ u.role }}</span></td>
+          <td>{% if u.is_active %}<span class="dot dot-green"></span>Yes{% else %}<span class="dot dot-red"></span>No{% endif %}</td>
+          <td>{{ u.created_at|date:"d M Y" }}</td>
+          <td><a href="{% url 'admin_edit_user' u.id %}" class="btn btn-secondary btn-sm">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px">
+    <a href="{% url 'admin_user_list' %}" class="btn btn-secondary btn-sm">View all users →</a>
+  </div>
+</div>
+{% endblock %}
